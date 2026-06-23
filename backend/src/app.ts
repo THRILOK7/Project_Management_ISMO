@@ -14,7 +14,7 @@ const app: Express = express();
 
 // Middleware - CORS must be first to handle preflight requests
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://frontend-production-eosin.vercel.app',
+  origin: process.env.FRONTEND_URL || 'https://frontend-execute.vercel.app',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
