@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import Link from 'next/link';
 
-export default function ProjectsList() {
+function ProjectsListContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -277,5 +277,13 @@ export default function ProjectsList() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ProjectsList() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen bg-[#0B0F19]"><div className="animate-spin rounded-full h-14 w-14 border-4 border-slate-800 border-t-indigo-500"></div></div>}>
+      <ProjectsListContent />
+    </Suspense>
   );
 }

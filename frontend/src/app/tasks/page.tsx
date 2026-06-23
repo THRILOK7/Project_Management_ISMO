@@ -1,11 +1,10 @@
 "use client";
-
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import Link from 'next/link';
 
-export default function AllTasksPage() {
+function AllTasksContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -67,15 +66,15 @@ export default function AllTasksPage() {
   // Derived heading based on active filter
   const pageTitle =
     statusFilter === 'COMPLETED' ? 'Completed Tasks' :
-    statusFilter === 'PENDING' ? 'Pending Tasks' :
-    statusFilter === 'IN_PROGRESS' ? 'In-Progress Tasks' :
-    'All Tasks';
+      statusFilter === 'PENDING' ? 'Pending Tasks' :
+        statusFilter === 'IN_PROGRESS' ? 'In-Progress Tasks' :
+          'All Tasks';
 
   const pageSubtitle =
     statusFilter === 'COMPLETED' ? 'Tasks that have been successfully finished' :
-    statusFilter === 'PENDING' ? 'Tasks awaiting action' :
-    statusFilter === 'IN_PROGRESS' ? 'Tasks currently being worked on' :
-    'All tasks across every project';
+      statusFilter === 'PENDING' ? 'Tasks awaiting action' :
+        statusFilter === 'IN_PROGRESS' ? 'Tasks currently being worked on' :
+          'All tasks across every project';
 
   return (
     <div className="px-4 py-8 sm:px-6 lg:px-8 bg-[#0B0F19] min-h-screen transition-colors duration-200">
@@ -233,8 +232,8 @@ export default function AllTasksPage() {
                               ${task.status === 'COMPLETED'
                                 ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-800/50'
                                 : task.status === 'IN_PROGRESS'
-                                ? 'bg-amber-950/50 text-amber-300 border border-amber-800/50'
-                                : 'bg-slate-800 text-slate-300 border border-slate-700'
+                                  ? 'bg-amber-950/50 text-amber-300 border border-amber-800/50'
+                                  : 'bg-slate-800 text-slate-300 border border-slate-700'
                               }`}>
                               {task.status.replace('_', ' ')}
                             </span>
@@ -245,8 +244,8 @@ export default function AllTasksPage() {
                               ${task.priority === 'HIGH'
                                 ? 'bg-rose-950/50 text-rose-300 border border-rose-800/50'
                                 : task.priority === 'MEDIUM'
-                                ? 'bg-amber-950/50 text-amber-300 border border-amber-800/50'
-                                : 'bg-emerald-950/50 text-emerald-300 border border-emerald-800/50'
+                                  ? 'bg-amber-950/50 text-amber-300 border border-amber-800/50'
+                                  : 'bg-emerald-950/50 text-emerald-300 border border-emerald-800/50'
                               }`}>
                               {task.priority}
                             </span>
@@ -323,5 +322,13 @@ export default function AllTasksPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AllTasksPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen bg-[#0B0F19]"><div className="animate-spin rounded-full h-14 w-14 border-4 border-slate-800 border-t-indigo-500"></div></div>}>
+      <AllTasksContent />
+    </Suspense>
   );
 }
