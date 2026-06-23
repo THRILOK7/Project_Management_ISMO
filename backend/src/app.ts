@@ -12,14 +12,14 @@ import taskRoutes from './routes/tasks.routes';
 
 const app: Express = express();
 
-// Middleware
-app.use(helmet());
+// Middleware - CORS must be first to handle preflight requests
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
