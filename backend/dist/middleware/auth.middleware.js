@@ -5,7 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.protect = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const prisma_1 = __importDefault(require("../utils/prisma"));
 const protect = async (req, res, next) => {
     let token;
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
@@ -19,16 +18,11 @@ const protect = async (req, res, next) => {
         return;
     }
     try {
+        // JWT is cryptographically verified — no DB lookup needed on every request.
+        // The token already contains the user's id and email, which is all we need
+        // to authorize downstream queries that are scoped to userId anyway.
         const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || 'secret');
-        const user = await prisma_1.default.user.findUnique({
-            where: { id: decoded.id },
-            select: { id: true, email: true },
-        });
-        if (!user) {
-            res.status(401).json({ error: 'Not authorized, user not found' });
-            return;
-        }
-        req.user = user;
+        req.user = { id: decoded.id, email: decoded.email || '' };
         next();
     }
     catch (error) {

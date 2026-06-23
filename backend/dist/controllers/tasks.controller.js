@@ -3,21 +3,70 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteTask = exports.updateTask = exports.createTask = exports.getTaskById = exports.getTasks = void 0;
+exports.deleteTask = exports.updateTask = exports.createTask = exports.getTaskById = exports.getTasks = exports.getTasksByProject = void 0;
 const prisma_1 = __importDefault(require("../utils/prisma"));
+// Get tasks for a specific project (OPTIMIZED)
+const getTasksByProject = async (req, res) => {
+    try {
+        const projectId = req.params.projectId;
+        // Verify project belongs to user
+        const project = await prisma_1.default.project.findFirst({
+            where: { id: projectId, userId: req.user.id },
+            select: { id: true }, // Only select ID for verification
+        });
+        if (!project) {
+            res.status(404).json({ error: 'Project not found' });
+            return;
+        }
+        // Get only tasks for this specific project
+        const tasks = await prisma_1.default.task.findMany({
+            where: { projectId },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.setHeader('Cache-Control', 'private, max-age=5');
+        res.json(tasks);
+    }
+    catch (error) {
+        console.error('Error in getTasksByProject:', error);
+        res.status(500).json({ error: 'Failed to fetch tasks' });
+    }
+};
+exports.getTasksByProject = getTasksByProject;
 const getTasks = async (req, res) => {
     try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+        const sortBy = req.query.sortBy || 'createdAt';
+        const order = req.query.order === 'asc' ? 'asc' : 'desc';
         const tasks = await prisma_1.default.task.findMany({
             where: {
                 project: {
                     userId: req.user.id,
                 },
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { [sortBy]: order },
+            skip,
+            take: limit,
             include: { project: { select: { name: true } } },
         });
-        res.setHeader('Cache-Control', 'private, max-age=10');
-        res.json(tasks);
+        const totalCount = await prisma_1.default.task.count({
+            where: {
+                project: {
+                    userId: req.user.id,
+                },
+            },
+        });
+        res.setHeader('Cache-Control', 'private, max-age=5');
+        res.json({
+            data: tasks,
+            meta: {
+                total: totalCount,
+                page,
+                limit,
+                totalPages: Math.ceil(totalCount / limit)
+            }
+        });
     }
     catch (error) {
         console.error('Error in getTasks:', error);
@@ -69,6 +118,13 @@ const createTask = async (req, res) => {
                 projectId,
             },
         });
+        await prisma_1.default.auditLog.create({
+            data: {
+                userId: req.user.id,
+                action: 'TASK_CREATED',
+                details: `Task "${task.name}" was created in project "${project.name}".`,
+            }
+        });
         res.status(201).json(task);
     }
     catch (error) {
@@ -102,6 +158,13 @@ const updateTask = async (req, res) => {
                 dueDate: dueDate ? new Date(dueDate) : null,
             },
         });
+        await prisma_1.default.auditLog.create({
+            data: {
+                userId: req.user.id,
+                action: 'TASK_UPDATED',
+                details: `Task "${task.name}" was updated.`,
+            }
+        });
         res.json(task);
     }
     catch (error) {
@@ -126,6 +189,13 @@ const deleteTask = async (req, res) => {
         }
         await prisma_1.default.task.delete({
             where: { id: req.params.id },
+        });
+        await prisma_1.default.auditLog.create({
+            data: {
+                userId: req.user.id,
+                action: 'TASK_DELETED',
+                details: `Task "${existingTask.name}" was deleted.`,
+            }
         });
         res.json({ message: 'Task removed' });
     }

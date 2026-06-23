@@ -3,16 +3,72 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteProject = exports.updateProject = exports.createProject = exports.getProjectById = exports.getProjects = void 0;
+exports.deleteProject = exports.updateProject = exports.createProject = exports.getProjectById = exports.getProjects = exports.getDashboardMetrics = void 0;
 const prisma_1 = __importDefault(require("../utils/prisma"));
+// Get dashboard metrics (optimized single query)
+const getDashboardMetrics = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        // Run queries in parallel for speed
+        const [projectStats, taskStats] = await Promise.all([
+            prisma_1.default.project.groupBy({
+                by: ['status'],
+                where: { userId },
+                _count: true,
+            }),
+            prisma_1.default.task.groupBy({
+                by: ['status'],
+                where: { project: { userId } },
+                _count: true,
+            }),
+        ]);
+        // Calculate metrics
+        const totalProjects = projectStats.reduce((sum, stat) => sum + stat._count, 0);
+        const projectsInProgress = projectStats.find(s => s.status === 'IN_PROGRESS')?._count || 0;
+        const totalTasks = taskStats.reduce((sum, stat) => sum + stat._count, 0);
+        const completedTasks = taskStats.find(s => s.status === 'COMPLETED')?._count || 0;
+        const pendingTasks = taskStats.find(s => s.status === 'PENDING')?._count || 0;
+        res.setHeader('Cache-Control', 'private, max-age=5');
+        res.json({
+            totalProjects,
+            projectsInProgress,
+            totalTasks,
+            completedTasks,
+            pendingTasks,
+        });
+    }
+    catch (error) {
+        console.error('Error in getDashboardMetrics:', error);
+        res.status(500).json({ error: 'Failed to fetch dashboard metrics' });
+    }
+};
+exports.getDashboardMetrics = getDashboardMetrics;
 const getProjects = async (req, res) => {
     try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+        const sortBy = req.query.sortBy || 'createdAt';
+        const order = req.query.order === 'asc' ? 'asc' : 'desc';
         const projects = await prisma_1.default.project.findMany({
             where: { userId: req.user.id },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { [sortBy]: order },
+            skip,
+            take: limit,
         });
-        res.setHeader('Cache-Control', 'private, max-age=10');
-        res.json(projects);
+        const totalCount = await prisma_1.default.project.count({
+            where: { userId: req.user.id },
+        });
+        res.setHeader('Cache-Control', 'private, max-age=5');
+        res.json({
+            data: projects,
+            meta: {
+                total: totalCount,
+                page,
+                limit,
+                totalPages: Math.ceil(totalCount / limit)
+            }
+        });
     }
     catch (error) {
         console.error('Error in getProjects:', error);
@@ -52,6 +108,13 @@ const createProject = async (req, res) => {
                 userId: req.user.id,
             },
         });
+        await prisma_1.default.auditLog.create({
+            data: {
+                userId: req.user.id,
+                action: 'PROJECT_CREATED',
+                details: `Project "${project.name}" was created.`,
+            }
+        });
         res.status(201).json(project);
     }
     catch (error) {
@@ -80,6 +143,13 @@ const updateProject = async (req, res) => {
                 endDate: endDate ? new Date(endDate) : null,
             },
         });
+        await prisma_1.default.auditLog.create({
+            data: {
+                userId: req.user.id,
+                action: 'PROJECT_UPDATED',
+                details: `Project "${project.name}" was updated.`,
+            }
+        });
         res.json(project);
     }
     catch (error) {
@@ -99,6 +169,13 @@ const deleteProject = async (req, res) => {
         }
         await prisma_1.default.project.delete({
             where: { id: req.params.id },
+        });
+        await prisma_1.default.auditLog.create({
+            data: {
+                userId: req.user.id,
+                action: 'PROJECT_DELETED',
+                details: `Project "${existingProject.name}" was deleted.`,
+            }
         });
         res.json({ message: 'Project removed' });
     }

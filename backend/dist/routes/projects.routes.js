@@ -7,6 +7,9 @@ const validate_middleware_1 = require("../middleware/validate.middleware");
 const schemas_1 = require("../schemas");
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.protect);
+// /dashboard must come before /:id so Express doesn't treat "dashboard" as an ID
+router.route('/dashboard')
+    .get(projects_controller_1.getDashboardMetrics);
 router.route('/')
     .get(projects_controller_1.getProjects)
     .post((0, validate_middleware_1.validate)(schemas_1.projectSchema), projects_controller_1.createProject);
